@@ -1,300 +1,394 @@
-import "./storage.js";
-import { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 
-/* ══════════════════════════════════════════
-   CONSTANTS & THEMES
-   ══════════════════════════════════════════ */
-const GRID_COLS = 12;
-const CELL_H = 56;
-const GRID_ROWS = 18;
-const GRID_GAP = 8;
-const uid = () => Math.random().toString(36).slice(2, 10);
-const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+/*
+ * ?????????????????????????????????????????????????????
+ * ?  MYPAGE - ?? ?? ??? ?? (???)          ?
+ * ?  localStorage ?? ??? + ??? ??            ?
+ * ?????????????????????????????????????????????????????
+ *
+ * ??? ?? � ??? ???? ????
+ *
+ * 1. ???: ???? Map ? localStorage
+ *    ? ?????? ???? ?????
+ *
+ * 2. ???/???? ?? ??
+ *    ? ???? ?? ??? ??? ??
+ *
+ * 3. ???? ?? ??
+ */
 
-const THEMES = {
-  noir: {
-    name: "Noir",
-    bg: "#0e0e12",
-    surface: "#18181f",
-    card: "rgba(26,26,35,0.85)",
-    border: "rgba(255,255,255,0.06)",
-    text: "#e4e4ec",
-    sub: "#6e6e82",
-    accent: "#a78bfa",
-    accentGlow: "rgba(167,139,250,0.25)",
-    gridLine: "rgba(255,255,255,0.04)",
-    gridLineFocus: "rgba(167,139,250,0.12)",
+/* ??? STORAGE (localStorage) ??? */
+const S = {
+  get: (k) => {
+    try {
+      const v = localStorage.getItem(k);
+      return v ? { value: v } : null;
+    } catch { return null; }
   },
-  rose: {
-    name: "Rosé",
-    bg: "#f8f0f0",
-    surface: "#fff5f5",
-    card: "rgba(255,255,255,0.8)",
-    border: "rgba(180,60,100,0.08)",
-    text: "#3a1a2a",
-    sub: "#9a7080",
-    accent: "#d4487a",
-    accentGlow: "rgba(212,72,122,0.18)",
-    gridLine: "rgba(0,0,0,0.04)",
-    gridLineFocus: "rgba(212,72,122,0.12)",
+  set: (k, v) => {
+    try { localStorage.setItem(k, v); } catch {}
   },
-  deep: {
-    name: "Deep Ocean",
-    bg: "#080c18",
-    surface: "#0d1228",
-    card: "rgba(14,20,48,0.85)",
-    border: "rgba(56,189,248,0.08)",
-    text: "#cce0f0",
-    sub: "#5a7a98",
-    accent: "#38bdf8",
-    accentGlow: "rgba(56,189,248,0.2)",
-    gridLine: "rgba(255,255,255,0.03)",
-    gridLineFocus: "rgba(56,189,248,0.1)",
-  },
-  sage: {
-    name: "Sage",
-    bg: "#0c120c",
-    surface: "#121e14",
-    card: "rgba(18,30,20,0.85)",
-    border: "rgba(74,222,128,0.08)",
-    text: "#d0e8d4",
-    sub: "#6a9870",
-    accent: "#4ade80",
-    accentGlow: "rgba(74,222,128,0.2)",
-    gridLine: "rgba(255,255,255,0.03)",
-    gridLineFocus: "rgba(74,222,128,0.1)",
-  },
-  cream: {
-    name: "Cream",
-    bg: "#f5f0e8",
-    surface: "#faf6f0",
-    card: "rgba(255,252,248,0.85)",
-    border: "rgba(120,80,20,0.06)",
-    text: "#2a2018",
-    sub: "#8a7a60",
-    accent: "#c08030",
-    accentGlow: "rgba(192,128,48,0.18)",
-    gridLine: "rgba(0,0,0,0.04)",
-    gridLineFocus: "rgba(192,128,48,0.12)",
+  del: (k) => {
+    try { localStorage.removeItem(k); } catch {}
   },
 };
 
-const DEFAULT_BLOCKS = [
-  { id: "b1", type: "profile", col: 4, row: 1, w: 5, h: 3, data: { name: "Your Name", bio: "한 줄 소개를 입력하세요 ✦", emoji: "✨", status: "Online" } },
-  { id: "b2", type: "about", col: 1, row: 1, w: 3, h: 3, data: { title: "ABOUT", items: ["🎨 Designer", "💻 Developer", "🌙 Night Owl"] } },
-  { id: "b3", type: "links", col: 9, row: 1, w: 4, h: 5, data: { title: "LINKS", links: [{ icon: "🐦", label: "Twitter", url: "#" }, { icon: "📸", label: "Instagram", url: "#" }, { icon: "💻", label: "GitHub", url: "#" }, { icon: "📝", label: "Blog", url: "#" }] } },
-  { id: "b4", type: "music", col: 1, row: 4, w: 5, h: 2, data: { track: "Favorite Song", artist: "Artist Name" } },
-  { id: "b5", type: "gallery", col: 6, row: 4, w: 3, h: 2, data: { title: "FAVORITES", items: [{ emoji: "🎮", label: "Games" }, { emoji: "📚", label: "Books" }, { emoji: "🎬", label: "Movies" }, { emoji: "🍜", label: "Food" }] } },
-  { id: "b6", type: "text", col: 1, row: 6, w: 8, h: 2, data: { content: "자유롭게 블록을 배치하고 크기를 조절해보세요.\n그리드 위에서 드래그하여 이동, 모서리를 잡아 크기를 변경할 수 있어요." } },
-  { id: "b7", type: "social", col: 9, row: 6, w: 4, h: 2, data: { title: "SOCIAL", handles: [{ platform: "X", handle: "@username" }, { platform: "IG", handle: "@username" }, { platform: "DC", handle: "user#0000" }] } },
+const uid = () => Math.random().toString(36).slice(2, 9);
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+const COLS = 12, CELL = 48, ROWS = 24, GAP = 5;
+
+/* ??? THEME ??? */
+const PRESETS = [
+  { n: "Midnight", bg: "#0e0e12", text: "#e4e4ec", sub: "#6e6e82", accent: "#a78bfa", card: "#1a1a23", border: "#ffffff10" },
+  { n: "Ros�", bg: "#f8f0f0", text: "#3a1a2a", sub: "#9a7080", accent: "#d4487a", card: "#ffffffcc", border: "#b43c6414" },
+  { n: "Ocean", bg: "#080c18", text: "#cce0f0", sub: "#5a7a98", accent: "#38bdf8", card: "#0e1430d9", border: "#38bdf814" },
+  { n: "Forest", bg: "#0c120c", text: "#d0e8d4", sub: "#6a9870", accent: "#4ade80", card: "#121e14d9", border: "#4ade8014" },
+  { n: "Cream", bg: "#f5f0e8", text: "#2a2018", sub: "#8a7a60", accent: "#c08030", card: "#fffcf8d9", border: "#78501410" },
+  { n: "Neon", bg: "#0a0a0a", text: "#f0f0f0", sub: "#888", accent: "#39ff14", card: "#0f0f0ff2", border: "#39ff1418" },
+  { n: "Pastel", bg: "#fce4ec", text: "#4a2040", sub: "#9a7090", accent: "#ce93d8", card: "#ffffffd9", border: "#ce93d826" },
+  { n: "Vapor", bg: "#0d0221", text: "#ff71ce", sub: "#7b61ff", accent: "#01cdfe", card: "#280a64b3", border: "#ff71ce26" },
 ];
 
-/* ══════════════════════════════════════════
-   BLOCK RENDERERS
-   ══════════════════════════════════════════ */
-function ProfileBlock({ data, t }) {
-  return (
-    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 8, textAlign: "center" }}>
-      <div style={{ width: 56, height: 56, borderRadius: "50%", background: `linear-gradient(135deg, ${t.accent}55, ${t.accent}22)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, border: `2px solid ${t.accent}33`, flexShrink: 0 }}>
-        {data.name?.charAt(0)?.toUpperCase() || "?"}
-      </div>
-      <div style={{ fontSize: 18, fontWeight: 700, color: t.text, letterSpacing: 0.5 }}>{data.name}</div>
-      <div style={{ fontSize: 12, color: t.sub, lineHeight: 1.5 }}>{data.bio}</div>
-      <div style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 10px", borderRadius: 12, background: t.border, fontSize: 10, color: t.sub }}>
-        <span>{data.emoji}</span>{data.status}
-      </div>
+/* ??? LAYOUTS ??? */
+const LAYOUTS = {
+  clean: "Clean", macos: "macOS", windows: "Windows", terminal: "Terminal",
+  diary: "????", minihompi: "????", retro: "Retro", rpg: "RPG",
+  kakao: "????", discord: "Discord", cyberpunk: "Cyberpunk",
+  glass: "Glass", postit: "????", brutalist: "Brutalist",
+  gameboy: "GameBoy", letter: "??", photoshop: "Photoshop",
+  magazine: "Magazine", notion: "Notion", film: "Film", pixel: "Pixel",
+};
+
+function LayoutWrap({ layout, children, t, title }) {
+  const ac = t.accent, bd = t.border, sub = t.sub, bg = t.bg, card = t.card, tx = t.text;
+  const bar = (content, bg2) => (
+    <div style={{ height: "100%", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+      <div style={{ flexShrink: 0, ...bg2 }}>{content}</div>
+      <div style={{ flex: 1, padding: "8px 10px", overflow: "hidden" }}>{children}</div>
     </div>
   );
-}
+  const simple = (pad, extra) => <div style={{ height: "100%", padding: pad, overflow: "hidden", ...extra }}>{children}</div>;
 
-function AboutBlock({ data, t }) {
-  return (
-    <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
-      <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 3, color: t.accent, marginBottom: 10 }}>{data.title}</div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 5, flex: 1, justifyContent: "center" }}>
-        {(data.items || []).map((item, i) => (
-          <span key={i} style={{ fontSize: 13, color: t.text, lineHeight: 1.5 }}>{item}</span>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function LinksBlock({ data, t }) {
-  return (
-    <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
-      <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 3, color: t.accent, marginBottom: 10 }}>{data.title}</div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 6, flex: 1, justifyContent: "center" }}>
-        {(data.links || []).map((lnk, i) => (
-          <a key={i} href={lnk.url} target="_blank" rel="noopener noreferrer"
-            style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", borderRadius: 8, background: t.border, color: t.text, textDecoration: "none", fontSize: 13, transition: "all .25s", border: "1px solid transparent" }}
-            onMouseEnter={e => { e.currentTarget.style.borderColor = t.accent; e.currentTarget.style.transform = "translateX(3px)"; }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor = "transparent"; e.currentTarget.style.transform = "none"; }}>
-            <span style={{ fontSize: 16 }}>{lnk.icon}</span>
-            <span style={{ flex: 1 }}>{lnk.label}</span>
-            <span style={{ opacity: .3, fontSize: 11 }}>→</span>
-          </a>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function MusicBlock({ data, t }) {
-  const [p, setP] = useState(35);
-  useEffect(() => { const iv = setInterval(() => setP(v => v >= 100 ? 0 : v + .12), 80); return () => clearInterval(iv); }, []);
-  return (
-    <div style={{ height: "100%", display: "flex", flexDirection: "column", justifyContent: "center", position: "relative", overflow: "hidden" }}>
-      <div style={{ position: "absolute", inset: 0, background: `radial-gradient(circle at 15% 50%, ${t.accentGlow}, transparent 70%)`, pointerEvents: "none" }} />
-      <div style={{ position: "relative" }}>
-        <div style={{ fontSize: 9, letterSpacing: 3, color: t.accent, marginBottom: 10 }}>♪ NOW PLAYING</div>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <div style={{ width: 40, height: 40, borderRadius: 8, background: `linear-gradient(135deg,${t.accent}44,${t.accent}18)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, border: `1px solid ${t.border}`, flexShrink: 0 }}>🎵</div>
-          <div>
-            <div style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{data.track}</div>
-            <div style={{ fontSize: 11, color: t.sub, marginTop: 2 }}>{data.artist}</div>
-          </div>
-        </div>
-        <div style={{ marginTop: 12, height: 3, borderRadius: 2, background: t.border, overflow: "hidden" }}>
-          <div style={{ width: `${p}%`, height: "100%", borderRadius: 2, background: t.accent, transition: "width .08s linear" }} />
+  switch (layout) {
+    case "macos": return bar(
+      <div style={{ display: "flex", alignItems: "center", gap: 4, padding: "5px 10px" }}>
+        {["#ff5f56", "#ffbd2e", "#27c93f"].map((c, i) => <div key={i} style={{ width: 8, height: 8, borderRadius: "50%", background: c }} />)}
+        {title && <span style={{ fontSize: 8, color: sub, marginLeft: 4 }}>{title}</span>}
+      </div>,
+      { background: `${tx}06`, borderBottom: `1px solid ${bd}` }
+    );
+    case "windows": return bar(
+      <div style={{ display: "flex", alignItems: "center", padding: "2px 6px" }}>
+        <span style={{ fontSize: 8, color: sub, flex: 1 }}>{title || "Window"}</span>
+        {["?", "?", "?"].map((c, i) => <span key={i} style={{ width: 14, height: 12, display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 8, color: sub, background: i === 2 ? "#e8111122" : "transparent" }}>{c}</span>)}
+      </div>,
+      { background: `${ac}15`, borderBottom: `1px solid ${bd}` }
+    );
+    case "terminal": return bar(
+      <div style={{ padding: "3px 10px", fontSize: 8, color: ac, fontFamily: "monospace" }}><span style={{ opacity: .5 }}>user@page</span>:~$</div>,
+      { background: `${ac}08`, borderBottom: `1px solid ${ac}18` }
+    );
+    case "discord": return bar(
+      <div style={{ display: "flex", alignItems: "center", gap: 3, padding: "3px 10px" }}><span style={{ color: sub, fontSize: 10 }}>#</span><span style={{ fontSize: 9, color: tx, fontWeight: 600 }}>{title || "general"}</span></div>,
+      { background: `${tx}04`, borderBottom: `1px solid ${bd}` }
+    );
+    case "retro": return bar(
+      <div style={{ padding: "2px 6px", display: "flex", justifyContent: "space-between" }}><span style={{ fontSize: 8, color: bg, fontWeight: 700, fontFamily: "monospace" }}>{title || "BLOCK"}</span><span style={{ fontSize: 8, color: bg, fontFamily: "monospace" }}>[x]</span></div>,
+      { background: ac }
+    );
+    case "photoshop": return bar(
+      <div style={{ display: "flex", padding: "2px 8px" }}><span style={{ fontSize: 7, color: sub, flex: 1 }}>{title || "Layer"}</span><span style={{ fontSize: 7, color: sub }}>?</span></div>,
+      { background: `${tx}05`, borderBottom: `1px solid ${tx}0a` }
+    );
+    case "gameboy": return (
+      <div style={{ height: "100%", display: "flex", flexDirection: "column", padding: 3 }}>
+        <div style={{ flex: 1, borderRadius: 3, border: `1px solid ${sub}22`, padding: "8px 10px", overflow: "hidden" }}>{children}</div>
+        <div style={{ display: "flex", justifyContent: "center", gap: 5, padding: "2px 0", flexShrink: 0 }}>
+          <div style={{ width: 5, height: 5, borderRadius: "50%", background: ac, opacity: .4 }} />
+          <div style={{ width: 5, height: 5, borderRadius: "50%", background: `${sub}33` }} />
         </div>
       </div>
-    </div>
-  );
-}
-
-function GalleryBlock({ data, t }) {
-  return (
-    <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
-      <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 3, color: t.accent, marginBottom: 10 }}>{data.title}</div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(56px,1fr))", gap: 6, flex: 1, alignContent: "center" }}>
-        {(data.items || []).map((it, i) => (
-          <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, padding: "10px 4px", borderRadius: 8, background: t.border, transition: "all .25s", cursor: "default" }}
-            onMouseEnter={e => { e.currentTarget.style.background = t.accentGlow; e.currentTarget.style.transform = "translateY(-2px)"; }}
-            onMouseLeave={e => { e.currentTarget.style.background = t.border; e.currentTarget.style.transform = "none"; }}>
-            <span style={{ fontSize: 20 }}>{it.emoji}</span>
-            <span style={{ fontSize: 9, color: t.sub }}>{it.label}</span>
-          </div>
-        ))}
+    );
+    case "diary": return (
+      <div style={{ height: "100%", position: "relative" }}>
+        <div style={{ position: "absolute", top: -3, left: 14, width: 32, height: 8, background: ac, opacity: .2, borderRadius: "0 0 3px 3px", transform: "rotate(-2deg)" }} />
+        <div style={{ height: "100%", padding: "10px", background: `repeating-linear-gradient(transparent,transparent 20px,${bd} 20px,${bd} 21px)`, overflow: "hidden" }}>{children}</div>
       </div>
-    </div>
-  );
-}
-
-function TextBlock({ data, t }) {
-  return (
-    <div style={{ height: "100%", display: "flex", alignItems: "center" }}>
-      <p style={{ margin: 0, fontSize: 13, lineHeight: 1.8, color: t.sub, whiteSpace: "pre-wrap" }}>{data.content}</p>
-    </div>
-  );
-}
-
-function SocialBlock({ data, t }) {
-  return (
-    <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
-      <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 3, color: t.accent, marginBottom: 10 }}>{data.title}</div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 6, flex: 1, justifyContent: "center" }}>
-        {(data.handles || []).map((h, i) => (
-          <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12 }}>
-            <span style={{ fontSize: 10, fontWeight: 700, color: t.accent, width: 24 }}>{h.platform}</span>
-            <span style={{ color: t.text }}>{h.handle}</span>
-          </div>
-        ))}
+    );
+    case "minihompi": return (
+      <div style={{ height: "100%", position: "relative", padding: "10px 12px" }}>
+        <div style={{ position: "absolute", top: -6, right: 8, padding: "1px 5px", borderRadius: 5, background: card, border: `1px solid ${bd}`, fontSize: 7, color: sub }}>? TODAY 1</div>
+        {children}
       </div>
-    </div>
-  );
+    );
+    case "rpg": return (
+      <div style={{ height: "100%", padding: "10px 12px", position: "relative" }}>
+        {[{ top: -1, left: -1 }, { top: -1, right: -1 }, { bottom: -1, left: -1 }, { bottom: -1, right: -1 }].map((p, i) => (
+          <div key={i} style={{ position: "absolute", ...p, width: 7, height: 7, border: `2px solid ${ac}`, borderRadius: 1 }} />
+        ))}
+        {children}
+      </div>
+    );
+    case "kakao": return (
+      <div style={{ height: "100%", padding: "10px 12px", position: "relative" }}>
+        <div style={{ position: "absolute", bottom: -4, left: 14, width: 8, height: 8, background: card, transform: "rotate(45deg)", borderRight: `1px solid ${bd}`, borderBottom: `1px solid ${bd}` }} />
+        {children}
+      </div>
+    );
+    case "cyberpunk": return simple("10px 12px", { clipPath: "polygon(0 0,calc(100% - 8px) 0,100% 8px,100% 100%,8px 100%,0 calc(100% - 8px))" });
+    case "glass": return simple("10px 12px", { backdropFilter: "blur(12px)" });
+    case "postit": return (
+      <div style={{ height: "100%", padding: "10px", position: "relative" }}>
+        <div style={{ position: "absolute", top: 0, right: 0, width: 12, height: 12, background: `linear-gradient(135deg,${bg} 50%,${tx}08 50%)` }} />
+        {children}
+      </div>
+    );
+    case "brutalist": return simple("10px 12px");
+    case "pixel": return simple("8px 10px");
+    case "film": return simple("8px 14px");
+    case "letter": return (
+      <div style={{ height: "100%", padding: "14px 12px 10px", position: "relative" }}>
+        <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 10, background: `repeating-linear-gradient(135deg,${ac}15 0,${ac}15 6px,transparent 6px,transparent 12px)`, pointerEvents: "none" }} />
+        {children}
+      </div>
+    );
+    case "magazine": return simple("10px 12px 10px 14px", { borderLeft: `3px solid ${ac}` });
+    case "notion": return simple("10px 12px", { borderLeft: `2px solid ${bd}` });
+    default: return simple("10px 12px");
+  }
 }
 
-const BLOCK_RENDERERS = { profile: ProfileBlock, about: AboutBlock, links: LinksBlock, music: MusicBlock, gallery: GalleryBlock, text: TextBlock, social: SocialBlock };
-
-const BLOCK_CATALOG = [
-  { type: "profile", label: "프로필", icon: "👤", defaultW: 4, defaultH: 3, defaultData: { name: "Name", bio: "Bio", emoji: "✨", status: "Online" } },
-  { type: "about", label: "소개", icon: "📋", defaultW: 3, defaultH: 3, defaultData: { title: "ABOUT", items: ["Item 1", "Item 2"] } },
-  { type: "links", label: "링크", icon: "🔗", defaultW: 4, defaultH: 4, defaultData: { title: "LINKS", links: [{ icon: "🔗", label: "Link", url: "#" }] } },
-  { type: "music", label: "음악", icon: "🎵", defaultW: 5, defaultH: 2, defaultData: { track: "Track", artist: "Artist" } },
-  { type: "gallery", label: "갤러리", icon: "🖼️", defaultW: 3, defaultH: 2, defaultData: { title: "GALLERY", items: [{ emoji: "⭐", label: "Item" }] } },
-  { type: "text", label: "텍스트", icon: "📝", defaultW: 6, defaultH: 2, defaultData: { content: "텍스트를 입력하세요" } },
-  { type: "social", label: "소셜", icon: "💬", defaultW: 3, defaultH: 2, defaultData: { title: "SOCIAL", handles: [{ platform: "X", handle: "@user" }] } },
-];
-
-/* ══════════════════════════════════════════
-   AUTH SCREEN
-   ══════════════════════════════════════════ */
-function AuthScreen({ onLogin }) {
-  const [mode, setMode] = useState("login");
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
-  const [displayName, setDisplayName] = useState("");
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
-
-  const handleSubmit = async () => {
-    if (!username.trim() || !password.trim()) { setError("모든 필드를 입력해주세요"); return; }
-    if (username.includes(" ") || username.includes("/") || username.includes("\\") || username.includes("'") || username.includes('"')) { setError("사용자명에 공백이나 특수문자를 사용할 수 없어요"); return; }
-    setLoading(true);
-    setError("");
-    try {
-      if (mode === "register") {
-        if (!displayName.trim()) { setError("표시 이름을 입력해주세요"); setLoading(false); return; }
-        let existing = null;
-        try { existing = await window.storage.get(`user-auth:${username}`, true); } catch {}
-        if (existing) { setError("이미 존재하는 사용자명이에요"); setLoading(false); return; }
-        const userData = { password, displayName: displayName.trim(), theme: "noir", createdAt: Date.now() };
-        await window.storage.set(`user-auth:${username}`, JSON.stringify(userData), true);
-        const pageData = { blocks: DEFAULT_BLOCKS.map(b => ({ ...b, id: uid() })), settings: { theme: "noir" } };
-        await window.storage.set(`user-page:${username}`, JSON.stringify(pageData), true);
-        await window.storage.set("current-session", JSON.stringify({ username }));
-        onLogin(username, displayName.trim());
-      } else {
-        let stored = null;
-        try { stored = await window.storage.get(`user-auth:${username}`, true); } catch {}
-        if (!stored) { setError("존재하지 않는 계정이에요"); setLoading(false); return; }
-        const userData = JSON.parse(stored.value);
-        if (userData.password !== password) { setError("비밀번호가 일치하지 않아요"); setLoading(false); return; }
-        await window.storage.set("current-session", JSON.stringify({ username }));
-        onLogin(username, userData.displayName);
+/* ??? PARTICLES ??? */
+function Particles({ effect, count, color }) {
+  const ref = useRef(null);
+  const anim = useRef(null);
+  useEffect(() => {
+    const c = ref.current;
+    if (!c || !c.parentElement) return;
+    const ctx = c.getContext("2d");
+    c.width = c.parentElement.offsetWidth;
+    c.height = c.parentElement.offsetHeight;
+    const W = c.width, H = c.height;
+    const pool = ({ stars: "???", hearts: "??", snow: "??", sparkle: "??" })[effect] || "???";
+    const pts = Array.from({ length: count || 12 }, () => ({
+      x: Math.random() * W, y: Math.random() * H, s: Math.random() * 7 + 5,
+      dx: (Math.random() - .5) * .3, dy: (Math.random() - .5) * .3,
+      o: Math.random() * .4 + .15, ch: pool[Math.floor(Math.random() * pool.length)], r: Math.random() * 360,
+    }));
+    const draw = () => {
+      ctx.clearRect(0, 0, W, H);
+      for (const p of pts) {
+        p.x += p.dx; p.y += p.dy; p.r += .3;
+        if (p.x < -8) p.x = W + 8; if (p.x > W + 8) p.x = -8;
+        if (p.y < -8) p.y = H + 8; if (p.y > H + 8) p.y = -8;
+        ctx.save(); ctx.globalAlpha = p.o; ctx.font = `${p.s}px serif`;
+        ctx.fillStyle = color; ctx.textAlign = "center";
+        ctx.translate(p.x, p.y); ctx.rotate(p.r * Math.PI / 180);
+        ctx.fillText(p.ch, 0, 0); ctx.restore();
       }
-    } catch (err) {
-      setError("오류가 발생했어요: " + err.message);
+      anim.current = requestAnimationFrame(draw);
+    };
+    draw();
+    return () => cancelAnimationFrame(anim.current);
+  }, [effect, count, color]);
+  return <canvas ref={ref} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none", zIndex: 1 }} />;
+}
+
+/* ??? MUSIC (separate for hooks) ??? */
+function MusicPlayer({ d, ac, t }) {
+  const [p, setP] = useState(35);
+  useEffect(() => { const iv = setInterval(() => setP(x => x >= 100 ? 0 : x + .1), 80); return () => clearInterval(iv); }, []);
+  return (
+    <div style={{ height: "100%", display: "flex", flexDirection: "column", justifyContent: "center" }}>
+      <div style={{ fontSize: 7, letterSpacing: 2, color: ac, marginBottom: 6 }}>? NOW PLAYING</div>
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <div style={{ width: 32, height: 32, borderRadius: 6, background: `linear-gradient(135deg,${ac}44,${ac}18)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, border: `1px solid ${t.border}`, flexShrink: 0 }}>?</div>
+        <div><div style={{ fontSize: 12, fontWeight: 600, color: t.text }}>{d.track}</div><div style={{ fontSize: 9, color: t.sub, marginTop: 1 }}>{d.artist}</div></div>
+      </div>
+      <div style={{ marginTop: 6, height: 3, borderRadius: 2, background: t.border, overflow: "hidden" }}>
+        <div style={{ width: `${p}%`, height: "100%", borderRadius: 2, background: ac, transition: "width .08s linear" }} />
+      </div>
+    </div>
+  );
+}
+
+/* ??? BLOCK CONTENT RENDERER ??? */
+function BlockContent({ type, v, d, t, st }) {
+  const ac = st?.accent || t.accent;
+  const av = (sz) => (
+    <div style={{ width: sz, height: sz, borderRadius: "50%", background: `linear-gradient(135deg,${ac}44,${ac}11)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: sz * .35, border: `2px solid ${ac}22`, flexShrink: 0, color: t.text }}>
+      {(d.name || "?")[0]?.toUpperCase()}
+    </div>
+  );
+
+  if (type === "profile") {
+    if (v === "center") return (<div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 5, textAlign: "center" }}>{av(52)}<div style={{ fontSize: 15, fontWeight: 700, color: t.text }}>{d.name}</div><div style={{ fontSize: 10, color: t.sub, lineHeight: 1.4 }}>{d.bio}</div>{d.status && <div style={{ display: "inline-flex", alignItems: "center", gap: 3, padding: "2px 7px", borderRadius: 8, background: t.border, fontSize: 8, color: t.sub }}><span>{d.emoji}</span>{d.status}</div>}</div>);
+    if (v === "side") return (<div style={{ display: "flex", alignItems: "center", gap: 8, height: "100%" }}>{av(36)}<div><div style={{ fontSize: 13, fontWeight: 700, color: t.text }}>{d.name}</div><div style={{ fontSize: 9, color: t.sub }}>{d.bio}</div></div></div>);
+    if (v === "card") return (<div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 6, textAlign: "center" }}>{av(48)}<div style={{ fontSize: 14, fontWeight: 700, color: t.text }}>{d.name}</div><div style={{ fontSize: 9, color: t.sub }}>{d.bio}</div>{d.tags && <div style={{ display: "flex", gap: 3, flexWrap: "wrap", justifyContent: "center" }}>{d.tags.map((g, i) => <span key={i} style={{ padding: "2px 7px", borderRadius: 10, background: t.border, fontSize: 8, color: t.sub }}>{g}</span>)}</div>}</div>);
+  }
+  if (type === "char") {
+    if (v === "oc") return (<div style={{ height: "100%", display: "flex", gap: 8, overflow: "auto" }}><div style={{ flexShrink: 0 }}>{av(64)}</div><div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 14, fontWeight: 700, color: t.text }}>{d.name}</div>{d.nameEn && <div style={{ fontSize: 9, color: t.sub }}>{d.nameEn}</div>}<div style={{ fontSize: 9, color: t.sub, marginTop: 3, lineHeight: 1.4 }}>{d.desc}</div><div style={{ marginTop: 5 }}>{(d.fields || []).map((f, i) => (<div key={i} style={{ display: "flex", gap: 5, fontSize: 9, marginBottom: 2 }}><span style={{ color: ac, fontWeight: 600, minWidth: 44 }}>{f.l}</span><span style={{ color: t.text }}>{f.v}</span></div>))}</div></div></div>);
+    if (v === "couple") return (<div style={{ height: "100%", display: "flex", flexDirection: "column", justifyContent: "center", gap: 5 }}><div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12 }}><div style={{ textAlign: "center" }}>{av(44)}<div style={{ fontSize: 11, fontWeight: 600, color: t.text, marginTop: 3 }}>{d.c1?.name}</div></div><div style={{ fontSize: 22, color: ac }}>{d.rel || "?"}</div><div style={{ textAlign: "center" }}>{av(44)}<div style={{ fontSize: 11, fontWeight: 600, color: t.text, marginTop: 3 }}>{d.c2?.name}</div></div></div>{d.relDesc && <div style={{ textAlign: "center", fontSize: 10, color: t.sub, fontStyle: "italic" }}>{d.relDesc}</div>}</div>);
+    if (v === "stat") return (<div style={{ height: "100%", display: "flex", gap: 8, alignItems: "center" }}>{av(52)}<div style={{ flex: 1 }}><div style={{ fontSize: 12, fontWeight: 700, color: t.text, marginBottom: 5 }}>{d.name}</div>{(d.stats || []).map((s, i) => (<div key={i} style={{ display: "flex", alignItems: "center", gap: 3, marginBottom: 3 }}><span style={{ fontSize: 8, color: ac, fontWeight: 600, width: 24, fontFamily: "monospace" }}>{s.l}</span><div style={{ flex: 1, height: 5, borderRadius: 3, background: t.border, overflow: "hidden" }}><div style={{ width: `${s.v}%`, height: "100%", borderRadius: 3, background: ac }} /></div><span style={{ fontSize: 7, color: t.sub, width: 18, textAlign: "right" }}>{s.v}</span></div>))}</div></div>);
+    if (v === "dialogue") return (<div style={{ height: "100%", display: "flex", alignItems: "center" }}><div><div style={{ fontSize: 12, color: t.text, fontStyle: "italic", lineHeight: 1.5 }}>"{d.quote}"</div>{d.speaker && <div style={{ fontSize: 9, color: ac, marginTop: 3 }}>� {d.speaker}</div>}</div></div>);
+    if (v === "relation") return (<div style={{ height: "100%", display: "flex", flexDirection: "column" }}>{d.title && <div style={{ fontSize: 8, fontWeight: 700, letterSpacing: 2, color: ac, marginBottom: 5 }}>{d.title}</div>}<div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", gap: 3 }}>{(d.items || []).map((r, i) => (<div key={i} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 10 }}><span style={{ color: t.text, fontWeight: 600 }}>{r.a}</span><span style={{ flex: 1, textAlign: "center", fontSize: 8, color: ac, borderBottom: `1px dashed ${ac}33` }}>{r.r}</span><span style={{ color: t.text, fontWeight: 600 }}>{r.b}</span></div>))}</div></div>);
+    if (v === "world") return (<div style={{ height: "100%", overflow: "auto" }}>{d.title && <div style={{ fontSize: 8, fontWeight: 700, letterSpacing: 2, color: ac, marginBottom: 5 }}>{d.title}</div>}<p style={{ margin: 0, fontSize: 10, lineHeight: 1.6, color: t.text, whiteSpace: "pre-wrap" }}>{d.content}</p></div>);
+  }
+  if (type === "story") {
+    if (v === "msg") return (<div style={{ height: "100%", display: "flex", flexDirection: "column", gap: 3, overflow: "auto" }}>{(d.msgs || []).map((m, i) => (<div key={i} style={{ display: "flex", flexDirection: "column", alignItems: m.me ? "flex-end" : "flex-start" }}>{!m.me && <span style={{ fontSize: 7, color: t.sub, marginBottom: 1, marginLeft: 2 }}>{m.s}</span>}<div style={{ maxWidth: "78%", padding: "5px 9px", borderRadius: m.me ? "10px 10px 3px 10px" : "10px 10px 10px 3px", background: m.me ? ac : `${t.text}10`, color: m.me ? "#fff" : t.text, fontSize: 10, lineHeight: 1.3 }}>{m.t}</div></div>))}</div>);
+    if (v === "summary") return (<div style={{ height: "100%", overflow: "auto" }}>{d.title && <div style={{ fontSize: 8, fontWeight: 700, letterSpacing: 2, color: ac, marginBottom: 6 }}>{d.title}</div>}{(d.ch || []).map((c, i) => (<div key={i} style={{ display: "flex", gap: 6, marginBottom: 6 }}><div style={{ display: "flex", flexDirection: "column", alignItems: "center", flexShrink: 0 }}><div style={{ width: 6, height: 6, borderRadius: "50%", background: i === 0 ? ac : t.border }} />{i < (d.ch || []).length - 1 && <div style={{ width: 1, flex: 1, background: t.border }} />}</div><div><div style={{ fontSize: 10, fontWeight: 600, color: t.text }}>{c.t}</div><div style={{ fontSize: 9, color: t.sub }}>{c.d}</div></div></div>))}</div>);
+    if (v === "letter") return (<div style={{ height: "100%", display: "flex", flexDirection: "column", justifyContent: "center", textAlign: "center", fontStyle: "italic" }}><p style={{ margin: 0, fontSize: 12, lineHeight: 1.8, color: t.text, whiteSpace: "pre-wrap" }}>{d.content}</p>{d.from && <p style={{ margin: "6px 0 0", fontSize: 10, color: ac }}>{d.from}</p>}</div>);
+    if (v === "timeline") return (<div style={{ height: "100%", overflow: "auto" }}>{d.title && <div style={{ fontSize: 8, fontWeight: 700, letterSpacing: 2, color: ac, marginBottom: 6 }}>{d.title}</div>}{(d.ev || []).map((e, i) => (<div key={i} style={{ display: "flex", gap: 6, paddingLeft: 5, position: "relative", marginBottom: 5 }}><div style={{ position: "absolute", left: 0, top: 4, width: 5, height: 5, borderRadius: "50%", background: i === 0 ? ac : t.border }} /><div style={{ paddingLeft: 6, borderLeft: i < (d.ev || []).length - 1 ? `1px solid ${t.border}` : "none" }}><div style={{ fontSize: 8, fontWeight: 700, color: ac }}>{e.y}</div><div style={{ fontSize: 10, color: t.text, marginTop: 1 }}>{e.t}</div></div></div>))}</div>);
+  }
+  if (type === "text") {
+    if (v === "quote") return (<div style={{ height: "100%", display: "flex", flexDirection: "column", justifyContent: "center", paddingLeft: 10, position: "relative" }}><div style={{ position: "absolute", left: 0, top: "10%", bottom: "10%", width: 3, borderRadius: 2, background: ac }} /><p style={{ margin: 0, fontSize: 11, lineHeight: 1.6, color: t.text, fontStyle: "italic", whiteSpace: "pre-wrap" }}>{d.content}</p>{d.author && <p style={{ margin: "4px 0 0", fontSize: 9, color: t.sub }}>{d.author}</p>}</div>);
+    if (v === "heading") return (<div style={{ height: "100%", display: "flex", flexDirection: "column", justifyContent: "center", textAlign: "center" }}><div style={{ fontSize: 22, fontWeight: 800, color: t.text }}>{d.content}</div>{d.sub && <div style={{ fontSize: 10, color: t.sub, marginTop: 3 }}>{d.sub}</div>}</div>);
+    if (v === "callout") return (<div style={{ height: "100%", display: "flex", alignItems: "center", gap: 8 }}><span style={{ fontSize: 18, flexShrink: 0 }}>{d.emoji || "?"}</span><p style={{ margin: 0, fontSize: 11, lineHeight: 1.5, color: t.text, whiteSpace: "pre-wrap" }}>{d.content}</p></div>);
+    return (<div style={{ height: "100%", display: "flex", alignItems: "center" }}><p style={{ margin: 0, fontSize: 11, lineHeight: 1.6, color: t.sub, whiteSpace: "pre-wrap" }}>{d.content}</p></div>);
+  }
+  if (type === "links") {
+    const lnks = d.links || [];
+    if (v === "pills") return (<div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 5, flexWrap: "wrap" }}>{lnks.map((l, i) => <span key={i} style={{ padding: "5px 12px", borderRadius: 14, background: t.border, color: t.text, fontSize: 10, display: "flex", alignItems: "center", gap: 3 }}><span>{l.i}</span>{l.l}</span>)}</div>);
+    return (<div style={{ height: "100%", display: "flex", flexDirection: "column" }}>{d.title && <div style={{ fontSize: 8, fontWeight: 700, letterSpacing: 2, color: ac, marginBottom: 5 }}>{d.title}</div>}<div style={{ display: "flex", flexDirection: "column", gap: 3, flex: 1, justifyContent: "center" }}>{lnks.map((l, i) => <div key={i} style={{ display: "flex", alignItems: "center", gap: 5, padding: "5px 8px", borderRadius: 5, background: t.border, fontSize: 10 }}><span style={{ fontSize: 13 }}>{l.i}</span><span style={{ flex: 1, color: t.text }}>{l.l}</span><span style={{ opacity: .3, fontSize: 9 }}>?</span></div>)}</div></div>);
+  }
+  if (type === "image") {
+    if (v === "gallery") return (<div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 3, height: "100%" }}>{(d.imgs || []).map((img, i) => <div key={i} style={{ borderRadius: 4, background: t.border, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 8, color: t.sub }}>{i + 1}</div>)}</div>);
+    return (<div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", background: t.border, borderRadius: 5, color: t.sub, fontSize: 9 }}>{d.caption || d.text || "???"}</div>);
+  }
+  if (type === "music") return <MusicPlayer d={d} ac={ac} t={t} />;
+  if (type === "person") {
+    if (v === "mbti") return (<div style={{ height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3 }}><span style={{ fontSize: 22 }}>{d.emoji}</span><div style={{ fontSize: 18, fontWeight: 800, color: ac, letterSpacing: 3 }}>{d.type}</div><div style={{ fontSize: 9, color: t.sub }}>{d.desc}</div></div>);
+    if (v === "tags") return (<div style={{ height: "100%", display: "flex", flexDirection: "column", justifyContent: "center" }}>{d.title && <div style={{ fontSize: 8, fontWeight: 700, letterSpacing: 2, color: ac, marginBottom: 6 }}>{d.title}</div>}<div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>{(d.tags || []).map((g, i) => <span key={i} style={{ padding: "3px 9px", borderRadius: 10, background: t.border, fontSize: 9, color: t.text }}>{g}</span>)}</div></div>);
+    if (v === "skills") return (<div style={{ height: "100%", display: "flex", flexDirection: "column", justifyContent: "center" }}>{d.title && <div style={{ fontSize: 8, fontWeight: 700, letterSpacing: 2, color: ac, marginBottom: 6 }}>{d.title}</div>}{(d.skills || []).map((s, i) => (<div key={i} style={{ marginBottom: 4 }}><div style={{ display: "flex", justifyContent: "space-between", fontSize: 9, marginBottom: 2 }}><span style={{ color: t.text }}>{s.n}</span><span style={{ color: t.sub }}>{s.v}%</span></div><div style={{ height: 5, borderRadius: 3, background: t.border, overflow: "hidden" }}><div style={{ width: `${s.v}%`, height: "100%", borderRadius: 3, background: ac }} /></div></div>))}</div>);
+    if (v === "fav") return (<div style={{ height: "100%", display: "flex", flexDirection: "column" }}>{d.title && <div style={{ fontSize: 8, fontWeight: 700, letterSpacing: 2, color: ac, marginBottom: 5 }}>{d.title}</div>}<div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(44px,1fr))", gap: 4, alignContent: "center", flex: 1 }}>{(d.items || []).map((it, i) => <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, padding: "5px 2px", borderRadius: 5, background: t.border }}><span style={{ fontSize: 14 }}>{it.e}</span><span style={{ fontSize: 7, color: t.sub }}>{it.l}</span></div>)}</div></div>);
+    if (v === "now") return (<div style={{ height: "100%", display: "flex", flexDirection: "column", justifyContent: "center", gap: 5 }}>{(d.items || []).map((it, i) => <div key={i} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 10 }}><span style={{ fontSize: 13 }}>{it.e}</span><span style={{ color: t.sub, width: 44, fontSize: 8 }}>{it.l}</span><span style={{ color: t.text, fontWeight: 500 }}>{it.v}</span></div>)}</div>);
+    if (v === "tmi") return (<div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}><div style={{ display: "flex", gap: 5, flexWrap: "wrap", justifyContent: "center" }}>{(d.items || []).map((it, i) => <span key={i} style={{ padding: "3px 9px", borderRadius: 10, background: t.border, fontSize: 9, color: t.text }}>{it}</span>)}</div></div>);
+    if (v === "qna") return (<div style={{ height: "100%", display: "flex", flexDirection: "column", justifyContent: "center", gap: 6 }}>{(d.items || []).map((it, i) => <div key={i}><div style={{ fontSize: 9, color: ac, fontWeight: 600 }}>Q. {it.q}</div><div style={{ fontSize: 10, color: t.text, marginTop: 1, paddingLeft: 5 }}>A. {it.a}</div></div>)}</div>);
+  }
+  if (type === "deco") {
+    if (v === "spacer") return <div />;
+    const m = { stars: "? ? ? ? ?", dots: "� � � � � � �", hearts: "? ? ? ? ?" };
+    if (m[d.style]) return <div style={{ textAlign: "center", color: d.style === "hearts" ? ac : t.sub, letterSpacing: 5, fontSize: 8, height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>{m[d.style]}</div>;
+    return <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100%" }}><div style={{ width: "80%", height: 1, background: t.border }} /></div>;
+  }
+  return null;
+}
+
+/* ??? BLOCK CATALOG ??? */
+const CAT = [
+  { key: "profile", label: "? ???", items: [
+    { type: "profile", v: "center", label: "???", w: 5, h: 4, d: { name: "Name", bio: "?? ?", img: "", emoji: "?", status: "Online" } },
+    { type: "profile", v: "side", label: "???", w: 5, h: 2, d: { name: "Name", bio: "??", img: "" } },
+    { type: "profile", v: "card", label: "???", w: 4, h: 4, d: { name: "Name", bio: "??", img: "", tags: ["Tag1", "Tag2"] } },
+  ] },
+  { key: "char", label: "? ???", items: [
+    { type: "char", v: "oc", label: "??", w: 6, h: 5, d: { name: "???", nameEn: "OC", desc: "??", img: "", fields: [{ l: "?", v: "170cm" }, { l: "??", v: "1/1" }] } },
+    { type: "char", v: "couple", label: "??", w: 8, h: 4, d: { c1: { name: "A", img: "" }, c2: { name: "B", img: "" }, rel: "?", relDesc: "??? ??? ??" } },
+    { type: "char", v: "stat", label: "??", w: 5, h: 4, d: { name: "OC", img: "", stats: [{ l: "STR", v: 70 }, { l: "INT", v: 85 }, { l: "DEX", v: 60 }, { l: "CHA", v: 90 }] } },
+    { type: "char", v: "dialogue", label: "??", w: 6, h: 2, d: { quote: "?? ??? ? ?? ?? ??.", speaker: "OC" } },
+    { type: "char", v: "relation", label: "???", w: 6, h: 3, d: { title: "???", items: [{ a: "A", b: "B", r: "?? ?" }] } },
+    { type: "char", v: "world", label: "???", w: 6, h: 3, d: { title: "???", content: "???? ??..." } },
+  ] },
+  { key: "story", label: "? ??", items: [
+    { type: "story", v: "msg", label: "???", w: 5, h: 4, d: { msgs: [{ s: "A", t: "?? ??!", me: false }, { s: "?", t: "?? ?", me: true }] } },
+    { type: "story", v: "summary", label: "?? ??", w: 6, h: 4, d: { title: "STORY", ch: [{ t: "????", d: "??" }, { t: "Ch.1", d: "??" }] } },
+    { type: "story", v: "letter", label: "??", w: 5, h: 3, d: { content: "??? ??? ?? ???...", from: "� ??? ?" } },
+    { type: "story", v: "timeline", label: "????", w: 5, h: 4, d: { title: "TIMELINE", ev: [{ y: "Year 1", t: "??" }, { y: "Year 3", t: "??" }] } },
+  ] },
+  { key: "text", label: "? ???", items: [
+    { type: "text", v: "plain", label: "??", w: 6, h: 2, d: { content: "?? ???" } },
+    { type: "text", v: "quote", label: "???", w: 6, h: 2, d: { content: "??", author: "� ??" } },
+    { type: "text", v: "heading", label: "? ??", w: 6, h: 2, d: { content: "TITLE", sub: "???" } },
+    { type: "text", v: "callout", label: "??", w: 6, h: 2, d: { emoji: "?", content: "?? ??" } },
+  ] },
+  { key: "links", label: "? ??", items: [
+    { type: "links", v: "list", label: "???", w: 4, h: 4, d: { title: "LINKS", links: [{ i: "?", l: "Twitter", u: "#" }, { i: "?", l: "IG", u: "#" }] } },
+    { type: "links", v: "pills", label: "??", w: 6, h: 2, d: { links: [{ i: "?", l: "TW", u: "#" }, { i: "?", l: "IG", u: "#" }] } },
+  ] },
+  { key: "image", label: "?? ???", items: [
+    { type: "image", v: "single", label: "??", w: 4, h: 4, d: { url: "", caption: "" } },
+    { type: "image", v: "gallery", label: "???", w: 6, h: 4, d: { imgs: [{ u: "" }, { u: "" }, { u: "" }, { u: "" }] } },
+  ] },
+  { key: "music", label: "? ??", items: [
+    { type: "music", v: "player", label: "????", w: 5, h: 2, d: { track: "Song", artist: "Artist" } },
+  ] },
+  { key: "person", label: "? ??", items: [
+    { type: "person", v: "mbti", label: "MBTI", w: 3, h: 2, d: { type: "INFP", desc: "???", emoji: "?" } },
+    { type: "person", v: "tags", label: "???", w: 6, h: 2, d: { title: "INTERESTS", tags: ["???", "??", "??"] } },
+    { type: "person", v: "skills", label: "??", w: 5, h: 3, d: { title: "SKILLS", skills: [{ n: "Design", v: 85 }, { n: "Code", v: 70 }] } },
+    { type: "person", v: "fav", label: "??", w: 4, h: 3, d: { title: "FAVORITES", items: [{ e: "?", l: "??" }, { e: "?", l: "???" }] } },
+    { type: "person", v: "now", label: "??", w: 4, h: 2, d: { items: [{ e: "?", l: "?? ?", v: "?? ??" }] } },
+    { type: "person", v: "tmi", label: "TMI", w: 5, h: 2, d: { items: ["??? ?? ?", "?? ?? ?"] } },
+    { type: "person", v: "qna", label: "Q&A", w: 5, h: 3, d: { items: [{ q: "???? ??", a: "??? ?" }] } },
+  ] },
+  { key: "deco", label: "? ??", items: [
+    { type: "deco", v: "divider", label: "???", w: 6, h: 1, d: { style: "stars" } },
+    { type: "deco", v: "spacer", label: "??", w: 12, h: 1, d: {} },
+  ] },
+];
+
+const DEFAULT_BLOCKS = [
+  { id: "1", type: "profile", v: "center", col: 4, row: 1, w: 5, h: 4, d: { name: "Your Name", bio: "??? ????? ?", img: "", emoji: "?", status: "Online" }, st: {} },
+  { id: "2", type: "char", v: "oc", col: 1, row: 1, w: 3, h: 5, d: { name: "OC", nameEn: "Character", desc: "??? ??", img: "", fields: [{ l: "?", v: "170cm" }, { l: "??", v: "1/1" }] }, st: {} },
+  { id: "3", type: "links", v: "list", col: 9, row: 1, w: 4, h: 4, d: { title: "LINKS", links: [{ i: "?", l: "Twitter", u: "#" }, { i: "?", l: "Instagram", u: "#" }, { i: "?", l: "GitHub", u: "#" }] }, st: {} },
+  { id: "4", type: "story", v: "msg", col: 4, row: 5, w: 5, h: 3, d: { msgs: [{ s: "A", t: "?? ??!", me: false }, { s: "?", t: "?? ?", me: true }, { s: "A", t: "??? :)", me: false }] }, st: {} },
+  { id: "5", type: "person", v: "mbti", col: 9, row: 5, w: 4, h: 2, d: { type: "INFP", desc: "???", emoji: "?" }, st: {} },
+  { id: "6", type: "music", v: "player", col: 1, row: 6, w: 3, h: 2, d: { track: "Favorite Song", artist: "Artist Name" }, st: {} },
+  { id: "7", type: "person", v: "fav", col: 9, row: 7, w: 4, h: 2, d: { title: "FAVORITES", items: [{ e: "?", l: "??" }, { e: "?", l: "???" }, { e: "?", l: "?????" }] }, st: {} },
+];
+
+/* ??? LOGIN SCREEN ??? */
+function Auth({ onLogin }) {
+  const [mode, setMode] = useState("login");
+  const [u, setU] = useState("");
+  const [p, setP] = useState("");
+  const [dn, setDn] = useState("");
+  const [err, setErr] = useState("");
+
+  const go = () => {
+    if (!u.trim() || !p.trim()) { setErr("?? ??? ??????"); return; }
+    if (mode === "register") {
+      if (!dn.trim()) { setErr("?? ??? ??????"); return; }
+      if (S.get(`u:${u}`)) { setErr("?? ???? ????"); return; }
+      S.set(`u:${u}`, JSON.stringify({ pw: p, dn: dn.trim() }));
+      S.set(`p:${u}`, JSON.stringify({ blocks: DEFAULT_BLOCKS.map(b => ({ ...b, id: uid() })), settings: { layout: "macos", colors: PRESETS[0] } }));
+      S.set("sess", u);
+      onLogin(u, dn.trim());
+    } else {
+      const raw = S.get(`u:${u}`);
+      if (!raw) { setErr("???? ?? ??"); return; }
+      const ud = JSON.parse(raw.value);
+      if (ud.pw !== p) { setErr("???? ???"); return; }
+      S.set("sess", u);
+      onLogin(u, ud.dn);
     }
-    setLoading(false);
   };
 
-  const t = THEMES.noir;
-  const inputSt = { width: "100%", padding: "12px 16px", fontSize: 14, color: t.text, background: t.surface, border: `1px solid ${t.border}`, borderRadius: 10, outline: "none", boxSizing: "border-box", fontFamily: "inherit", transition: "border .2s" };
+  const t = { bg: "#0e0e12", text: "#e4e4ec", sub: "#6e6e82", accent: "#a78bfa", card: "#1a1a23", border: "#ffffff10" };
+  const I = { width: "100%", padding: "10px 12px", fontSize: 12, color: t.text, background: t.card, border: `1px solid ${t.border}`, borderRadius: 6, outline: "none", boxSizing: "border-box", fontFamily: "inherit" };
 
   return (
-    <div style={{ minHeight: "100vh", background: t.bg, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Outfit', 'Pretendard', sans-serif" }}>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap');
-        @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css');
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        input:focus { border-color: ${t.accent} !important; }
-        @keyframes fadeIn { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
-      `}</style>
-      <div style={{ width: 380, padding: "48px 36px", background: t.card, border: `1px solid ${t.border}`, borderRadius: 20, backdropFilter: "blur(20px)", animation: "fadeIn .6s ease" }}>
-        <div style={{ textAlign: "center", marginBottom: 32 }}>
-          <div style={{ fontSize: 28, fontWeight: 800, color: t.text, letterSpacing: -0.5 }}>MY<span style={{ color: t.accent }}>PAGE</span></div>
-          <div style={{ fontSize: 12, color: t.sub, marginTop: 6, letterSpacing: 2 }}>나만의 페이지를 만들어보세요</div>
+    <div style={{ minHeight: "100vh", background: t.bg, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Outfit','Pretendard',sans-serif" }}>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap');@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css');*{box-sizing:border-box;margin:0;padding:0}input:focus{border-color:${t.accent}!important;outline:none}@keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}`}</style>
+      <div style={{ width: 340, padding: "40px 28px", background: t.card, border: `1px solid ${t.border}`, borderRadius: 16, animation: "fadeIn .5s ease" }}>
+        <div style={{ textAlign: "center", marginBottom: 24 }}>
+          <div style={{ fontSize: 24, fontWeight: 800, color: t.text }}>MY<span style={{ color: t.accent }}>PAGE</span></div>
+          <div style={{ fontSize: 10, color: t.sub, marginTop: 4 }}>??? ???? ??????</div>
         </div>
-
-        <div style={{ display: "flex", marginBottom: 24, borderRadius: 10, overflow: "hidden", border: `1px solid ${t.border}` }}>
+        <div style={{ display: "flex", marginBottom: 16, borderRadius: 6, overflow: "hidden", border: `1px solid ${t.border}` }}>
           {["login", "register"].map(m => (
-            <button key={m} onClick={() => { setMode(m); setError(""); }}
-              style={{ flex: 1, padding: "10px", fontSize: 12, fontWeight: mode === m ? 700 : 400, color: mode === m ? t.accent : t.sub, background: mode === m ? t.accentGlow : "transparent", border: "none", cursor: "pointer", fontFamily: "inherit", letterSpacing: 1, transition: "all .2s" }}>
-              {m === "login" ? "로그인" : "회원가입"}
+            <button key={m} onClick={() => { setMode(m); setErr(""); }} style={{ flex: 1, padding: "8px", fontSize: 10, fontWeight: mode === m ? 700 : 400, color: mode === m ? t.accent : t.sub, background: mode === m ? `${t.accent}22` : "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
+              {m === "login" ? "???" : "????"}
             </button>
           ))}
         </div>
-
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          <input style={inputSt} placeholder="사용자명 (영문)" value={username} onChange={e => setUsername(e.target.value.toLowerCase())} />
-          {mode === "register" && <input style={inputSt} placeholder="표시 이름" value={displayName} onChange={e => setDisplayName(e.target.value)} />}
-          <input style={inputSt} type="password" placeholder="비밀번호" value={password} onChange={e => setPassword(e.target.value)} onKeyDown={e => e.key === "Enter" && handleSubmit()} />
-          {error && <div style={{ fontSize: 12, color: "#f06060", padding: "6px 0" }}>{error}</div>}
-          <button onClick={handleSubmit} disabled={loading}
-            style={{ marginTop: 8, padding: "14px", fontSize: 14, fontWeight: 700, color: "#fff", background: t.accent, border: "none", borderRadius: 10, cursor: loading ? "wait" : "pointer", fontFamily: "inherit", letterSpacing: 1, opacity: loading ? .6 : 1, transition: "all .2s" }}>
-            {loading ? "처리 중..." : mode === "login" ? "로그인" : "가입하기"}
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <input style={I} placeholder="???? (??)" value={u} onChange={e => setU(e.target.value.toLowerCase())} />
+          {mode === "register" && <input style={I} placeholder="?? ??" value={dn} onChange={e => setDn(e.target.value)} />}
+          <input style={I} type="password" placeholder="????" value={p} onChange={e => setP(e.target.value)} onKeyDown={e => e.key === "Enter" && go()} />
+          {err && <div style={{ fontSize: 10, color: "#f06060" }}>{err}</div>}
+          <button onClick={go} style={{ marginTop: 4, padding: "10px", fontSize: 12, fontWeight: 700, color: "#fff", background: t.accent, border: "none", borderRadius: 6, cursor: "pointer", fontFamily: "inherit" }}>
+            {mode === "login" ? "???" : "????"}
           </button>
         </div>
       </div>
@@ -302,448 +396,245 @@ function AuthScreen({ onLogin }) {
   );
 }
 
-/* ══════════════════════════════════════════
-   BLOCK EDITOR PANEL (content editing)
-   ══════════════════════════════════════════ */
-function BlockEditorPanel({ block, t, onUpdate, onClose }) {
-  if (!block) return null;
-  const d = block.data;
-  const set = (field, value) => onUpdate({ ...block, data: { ...d, [field]: value } });
-  const inSt = { width: "100%", padding: "8px 12px", fontSize: 13, color: t.text, background: t.surface, border: `1px solid ${t.border}`, borderRadius: 8, outline: "none", boxSizing: "border-box", fontFamily: "inherit" };
-  const lblSt = { fontSize: 10, color: t.sub, marginBottom: 4, display: "block", letterSpacing: 1, textTransform: "uppercase" };
-
-  return (
-    <div style={{ position: "fixed", top: 0, right: 0, width: 320, height: "100vh", background: t.bg, borderLeft: `1px solid ${t.border}`, zIndex: 2000, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", borderBottom: `1px solid ${t.border}` }}>
-        <span style={{ fontSize: 13, fontWeight: 700, color: t.text, letterSpacing: 1 }}>블록 편집</span>
-        <button onClick={onClose} style={{ background: "none", border: "none", color: t.sub, fontSize: 18, cursor: "pointer" }}>✕</button>
-      </div>
-      <div style={{ flex: 1, overflowY: "auto", padding: "16px 20px", display: "flex", flexDirection: "column", gap: 14 }}>
-        {block.type === "profile" && <>
-          <div><label style={lblSt}>이름</label><input style={inSt} value={d.name || ""} onChange={e => set("name", e.target.value)} /></div>
-          <div><label style={lblSt}>소개</label><textarea style={{ ...inSt, minHeight: 50, resize: "vertical" }} value={d.bio || ""} onChange={e => set("bio", e.target.value)} /></div>
-          <div><label style={lblSt}>이모지</label><input style={{ ...inSt, width: 60 }} value={d.emoji || ""} onChange={e => set("emoji", e.target.value)} /></div>
-          <div><label style={lblSt}>상태</label><input style={inSt} value={d.status || ""} onChange={e => set("status", e.target.value)} /></div>
-        </>}
-        {block.type === "about" && <>
-          <div><label style={lblSt}>제목</label><input style={inSt} value={d.title || ""} onChange={e => set("title", e.target.value)} /></div>
-          <div><label style={lblSt}>항목 (줄바꿈 구분)</label><textarea style={{ ...inSt, minHeight: 80, resize: "vertical" }} value={(d.items || []).join("\n")} onChange={e => set("items", e.target.value.split("\n"))} /></div>
-        </>}
-        {block.type === "links" && <>
-          <div><label style={lblSt}>제목</label><input style={inSt} value={d.title || ""} onChange={e => set("title", e.target.value)} /></div>
-          {(d.links || []).map((lnk, i) => (
-            <div key={i} style={{ display: "flex", gap: 4 }}>
-              <input style={{ ...inSt, width: 36, textAlign: "center", padding: "6px 2px" }} value={lnk.icon} onChange={e => { const nl = [...d.links]; nl[i] = { ...nl[i], icon: e.target.value }; set("links", nl); }} />
-              <input style={{ ...inSt, flex: 1 }} placeholder="라벨" value={lnk.label} onChange={e => { const nl = [...d.links]; nl[i] = { ...nl[i], label: e.target.value }; set("links", nl); }} />
-              <input style={{ ...inSt, flex: 1 }} placeholder="URL" value={lnk.url} onChange={e => { const nl = [...d.links]; nl[i] = { ...nl[i], url: e.target.value }; set("links", nl); }} />
-              <button onClick={() => set("links", d.links.filter((_, j) => j !== i))} style={{ background: "none", border: "none", color: "#e55", cursor: "pointer", fontSize: 14 }}>✕</button>
-            </div>
-          ))}
-          <button onClick={() => set("links", [...(d.links || []), { icon: "🔗", label: "New", url: "#" }])} style={{ padding: "6px 12px", fontSize: 11, borderRadius: 6, background: t.accent, color: "#fff", border: "none", cursor: "pointer" }}>+ 링크 추가</button>
-        </>}
-        {block.type === "music" && <>
-          <div><label style={lblSt}>곡 제목</label><input style={inSt} value={d.track || ""} onChange={e => set("track", e.target.value)} /></div>
-          <div><label style={lblSt}>아티스트</label><input style={inSt} value={d.artist || ""} onChange={e => set("artist", e.target.value)} /></div>
-        </>}
-        {block.type === "gallery" && <>
-          <div><label style={lblSt}>제목</label><input style={inSt} value={d.title || ""} onChange={e => set("title", e.target.value)} /></div>
-          {(d.items || []).map((it, i) => (
-            <div key={i} style={{ display: "flex", gap: 4 }}>
-              <input style={{ ...inSt, width: 42, textAlign: "center" }} value={it.emoji} onChange={e => { const ni = [...d.items]; ni[i] = { ...ni[i], emoji: e.target.value }; set("items", ni); }} />
-              <input style={{ ...inSt, flex: 1 }} value={it.label} onChange={e => { const ni = [...d.items]; ni[i] = { ...ni[i], label: e.target.value }; set("items", ni); }} />
-              <button onClick={() => set("items", d.items.filter((_, j) => j !== i))} style={{ background: "none", border: "none", color: "#e55", cursor: "pointer" }}>✕</button>
-            </div>
-          ))}
-          <button onClick={() => set("items", [...(d.items || []), { emoji: "⭐", label: "New" }])} style={{ padding: "6px 12px", fontSize: 11, borderRadius: 6, background: t.accent, color: "#fff", border: "none", cursor: "pointer" }}>+ 항목 추가</button>
-        </>}
-        {block.type === "text" && <div><label style={lblSt}>내용</label><textarea style={{ ...inSt, minHeight: 100, resize: "vertical" }} value={d.content || ""} onChange={e => set("content", e.target.value)} /></div>}
-        {block.type === "social" && <>
-          <div><label style={lblSt}>제목</label><input style={inSt} value={d.title || ""} onChange={e => set("title", e.target.value)} /></div>
-          {(d.handles || []).map((h, i) => (
-            <div key={i} style={{ display: "flex", gap: 4 }}>
-              <input style={{ ...inSt, width: 48 }} value={h.platform} onChange={e => { const nh = [...d.handles]; nh[i] = { ...nh[i], platform: e.target.value }; set("handles", nh); }} />
-              <input style={{ ...inSt, flex: 1 }} value={h.handle} onChange={e => { const nh = [...d.handles]; nh[i] = { ...nh[i], handle: e.target.value }; set("handles", nh); }} />
-              <button onClick={() => set("handles", d.handles.filter((_, j) => j !== i))} style={{ background: "none", border: "none", color: "#e55", cursor: "pointer" }}>✕</button>
-            </div>
-          ))}
-          <button onClick={() => set("handles", [...(d.handles || []), { platform: "X", handle: "@user" }])} style={{ padding: "6px 12px", fontSize: 11, borderRadius: 6, background: t.accent, color: "#fff", border: "none", cursor: "pointer" }}>+ 핸들 추가</button>
-        </>}
-      </div>
-    </div>
-  );
-}
-
-/* ══════════════════════════════════════════
-   GRID CANVAS — THE MAIN EDITOR
-   ══════════════════════════════════════════ */
-function GridCanvas({ blocks, setBlocks, editing, theme, selectedId, setSelectedId, onEditBlock }) {
-  const t = THEMES[theme] || THEMES.noir;
-  const gridRef = useRef(null);
-  const dragRef = useRef(null); // { blockId, mode:'move'|'resize', startX, startY, origCol, origRow, origW, origH }
-  const [dragGhost, setDragGhost] = useState(null);
-
-  const getGridPixel = useCallback(() => {
-    if (!gridRef.current) return { cellW: 80, offsetX: 0, offsetY: 0 };
-    const rect = gridRef.current.getBoundingClientRect();
-    const totalGap = GRID_GAP * (GRID_COLS - 1);
-    const cellW = (rect.width - totalGap) / GRID_COLS;
-    return { cellW, offsetX: rect.left, offsetY: rect.top, gridW: rect.width };
-  }, []);
-
-  const pixelToGrid = useCallback((px, py) => {
-    const { cellW, offsetX, offsetY } = getGridPixel();
-    const col = Math.round((px - offsetX) / (cellW + GRID_GAP)) + 1;
-    const row = Math.round((py - offsetY) / (CELL_H + GRID_GAP)) + 1;
-    return { col: clamp(col, 1, GRID_COLS), row: clamp(row, 1, GRID_ROWS) };
-  }, [getGridPixel]);
-
-  const handleMouseDown = useCallback((e, blockId, mode) => {
-    if (!editing) return;
-    e.preventDefault();
-    e.stopPropagation();
-    const block = blocks.find(b => b.id === blockId);
-    if (!block) return;
-    setSelectedId(blockId);
-    dragRef.current = { blockId, mode, startX: e.clientX, startY: e.clientY, origCol: block.col, origRow: block.row, origW: block.w, origH: block.h };
-    setDragGhost({ col: block.col, row: block.row, w: block.w, h: block.h });
-  }, [editing, blocks, setSelectedId]);
-
-  useEffect(() => {
-    if (!editing) return;
-    const handleMove = (e) => {
-      const dr = dragRef.current;
-      if (!dr) return;
-      const { cellW } = getGridPixel();
-      const stepX = cellW + GRID_GAP;
-      const stepY = CELL_H + GRID_GAP;
-      const dx = e.clientX - dr.startX;
-      const dy = e.clientY - dr.startY;
-
-      if (dr.mode === "move") {
-        const dCol = Math.round(dx / stepX);
-        const dRow = Math.round(dy / stepY);
-        const newCol = clamp(dr.origCol + dCol, 1, GRID_COLS - dr.origW + 1);
-        const newRow = clamp(dr.origRow + dRow, 1, GRID_ROWS - dr.origH + 1);
-        setDragGhost({ col: newCol, row: newRow, w: dr.origW, h: dr.origH });
-      } else {
-        const dW = Math.round(dx / stepX);
-        const dH = Math.round(dy / stepY);
-        const newW = clamp(dr.origW + dW, 1, GRID_COLS - dr.origCol + 1);
-        const newH = clamp(dr.origH + dH, 1, GRID_ROWS - dr.origRow + 1);
-        setDragGhost({ col: dr.origCol, row: dr.origRow, w: newW, h: newH });
-      }
-    };
-    const handleUp = () => {
-      const dr = dragRef.current;
-      if (dr && dragGhost) {
-        setBlocks(prev => prev.map(b => b.id === dr.blockId ? { ...b, col: dragGhost.col, row: dragGhost.row, w: dragGhost.w, h: dragGhost.h } : b));
-      }
-      dragRef.current = null;
-      setDragGhost(null);
-    };
-    window.addEventListener("mousemove", handleMove);
-    window.addEventListener("mouseup", handleUp);
-    return () => { window.removeEventListener("mousemove", handleMove); window.removeEventListener("mouseup", handleUp); };
-  }, [editing, dragGhost, getGridPixel, setBlocks]);
-
-  const gridW = "100%";
-  const { cellW: cw } = getGridPixel();
-
-  return (
-    <div ref={gridRef} style={{ position: "relative", display: "grid", gridTemplateColumns: `repeat(${GRID_COLS}, 1fr)`, gridAutoRows: CELL_H, gap: GRID_GAP, width: "100%", minHeight: GRID_ROWS * (CELL_H + GRID_GAP) }}>
-
-      {/* grid overlay in edit mode */}
-      {editing && Array.from({ length: GRID_COLS * GRID_ROWS }).map((_, i) => {
-        const c = (i % GRID_COLS) + 1;
-        const r = Math.floor(i / GRID_COLS) + 1;
-        return (
-          <div key={`cell-${i}`} style={{
-            gridColumn: c, gridRow: r,
-            borderRadius: 4,
-            border: `1px dashed ${t.gridLine}`,
-            background: t.gridLineFocus.replace(/[\d.]+\)$/, "0.02)"),
-            pointerEvents: "none",
-          }} />
-        );
-      })}
-
-      {/* ghost indicator */}
-      {editing && dragGhost && (
-        <div style={{
-          gridColumn: `${dragGhost.col} / span ${dragGhost.w}`,
-          gridRow: `${dragGhost.row} / span ${dragGhost.h}`,
-          borderRadius: 12,
-          border: `2px dashed ${t.accent}`,
-          background: t.accentGlow,
-          pointerEvents: "none",
-          zIndex: 5,
-          transition: "all .08s ease",
-        }} />
-      )}
-
-      {/* blocks */}
-      {blocks.map(block => {
-        const Renderer = BLOCK_RENDERERS[block.type];
-        const isSelected = selectedId === block.id;
-        const isDragging = dragRef.current?.blockId === block.id;
-        return (
-          <div key={block.id}
-            style={{
-              gridColumn: `${block.col} / span ${block.w}`,
-              gridRow: `${block.row} / span ${block.h}`,
-              background: t.card,
-              backdropFilter: "blur(16px)",
-              WebkitBackdropFilter: "blur(16px)",
-              border: `1px solid ${isSelected && editing ? t.accent : t.border}`,
-              borderRadius: 14,
-              padding: "16px 18px",
-              position: "relative",
-              zIndex: isDragging ? 10 : 2,
-              opacity: isDragging ? .6 : 1,
-              cursor: editing ? "grab" : "default",
-              transition: isDragging ? "none" : "box-shadow .2s, border .2s",
-              boxShadow: isSelected && editing ? `0 0 0 1px ${t.accent}, 0 4px 20px ${t.accentGlow}` : `0 2px 12px rgba(0,0,0,0.15)`,
-              overflow: "hidden",
-              userSelect: editing ? "none" : "auto",
-            }}
-            onMouseDown={e => editing && handleMouseDown(e, block.id, "move")}
-            onDoubleClick={() => editing && onEditBlock(block.id)}
-          >
-            {Renderer && <Renderer data={block.data} t={t} />}
-
-            {/* resize handle */}
-            {editing && isSelected && (
-              <div
-                onMouseDown={e => handleMouseDown(e, block.id, "resize")}
-                style={{
-                  position: "absolute", bottom: 0, right: 0, width: 20, height: 20,
-                  cursor: "nwse-resize", zIndex: 20, display: "flex", alignItems: "center", justifyContent: "center",
-                }}
-              >
-                <svg width="10" height="10" viewBox="0 0 10 10">
-                  <path d="M9 1L1 9M9 5L5 9M9 9L9 9" stroke={t.accent} strokeWidth="1.5" strokeLinecap="round" />
-                </svg>
-              </div>
-            )}
-
-            {/* delete btn */}
-            {editing && isSelected && (
-              <button
-                onClick={e => { e.stopPropagation(); setBlocks(prev => prev.filter(b => b.id !== block.id)); setSelectedId(null); }}
-                style={{ position: "absolute", top: 6, right: 8, background: "rgba(220,50,50,0.9)", color: "#fff", border: "none", borderRadius: 6, width: 22, height: 22, fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 20 }}
-              >✕</button>
-            )}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-/* ══════════════════════════════════════════
-   TOOLBAR
-   ══════════════════════════════════════════ */
-function Toolbar({ editing, setEditing, theme, setTheme, blocks, setBlocks, onLogout, username }) {
-  const t = THEMES[theme] || THEMES.noir;
-  const [showAdd, setShowAdd] = useState(false);
-  const [showTheme, setShowTheme] = useState(false);
-
-  const addBlock = (cat) => {
-    const maxRow = blocks.reduce((mx, b) => Math.max(mx, b.row + b.h), 0);
-    const nb = { id: uid(), type: cat.type, col: 1, row: maxRow + 1 > GRID_ROWS ? 1 : maxRow, w: cat.defaultW, h: cat.defaultH, data: JSON.parse(JSON.stringify(cat.defaultData)) };
-    setBlocks(prev => [...prev, nb]);
-    setShowAdd(false);
-  };
-
-  const btnSt = (active) => ({
-    padding: "8px 16px", fontSize: 12, fontWeight: 600, color: active ? "#fff" : t.text,
-    background: active ? t.accent : t.surface, border: `1px solid ${active ? t.accent : t.border}`,
-    borderRadius: 10, cursor: "pointer", fontFamily: "inherit", transition: "all .2s", letterSpacing: 0.5,
-    display: "flex", alignItems: "center", gap: 6, position: "relative",
-  });
-
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "14px 24px", background: t.bg, borderBottom: `1px solid ${t.border}`, position: "sticky", top: 0, zIndex: 100, backdropFilter: "blur(20px)" }}>
-      <div style={{ fontSize: 16, fontWeight: 800, color: t.text, marginRight: 8, letterSpacing: -0.5 }}>MY<span style={{ color: t.accent }}>PAGE</span></div>
-      <div style={{ fontSize: 11, color: t.sub, marginRight: "auto", letterSpacing: 1 }}>@{username}</div>
-
-      <button onClick={() => setEditing(!editing)} style={btnSt(editing)}>
-        {editing ? "✓ 완료" : "✏️ 편집"}
-      </button>
-
-      {editing && (
-        <>
-          <div style={{ position: "relative" }}>
-            <button onClick={() => { setShowAdd(!showAdd); setShowTheme(false); }} style={btnSt(false)}>+ 블록</button>
-            {showAdd && (
-              <div style={{ position: "absolute", top: "calc(100% + 6px)", left: 0, background: t.bg, border: `1px solid ${t.border}`, borderRadius: 12, padding: 8, zIndex: 200, minWidth: 180, boxShadow: `0 8px 32px rgba(0,0,0,.4)` }}>
-                {BLOCK_CATALOG.map(cat => (
-                  <button key={cat.type} onClick={() => addBlock(cat)}
-                    style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "8px 12px", fontSize: 12, color: t.text, background: "transparent", border: "none", borderRadius: 8, cursor: "pointer", fontFamily: "inherit", transition: "background .15s", textAlign: "left" }}
-                    onMouseEnter={e => e.currentTarget.style.background = t.border}
-                    onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
-                    <span style={{ fontSize: 16 }}>{cat.icon}</span>{cat.label}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div style={{ position: "relative" }}>
-            <button onClick={() => { setShowTheme(!showTheme); setShowAdd(false); }} style={btnSt(false)}>🎨 테마</button>
-            {showTheme && (
-              <div style={{ position: "absolute", top: "calc(100% + 6px)", right: 0, background: t.bg, border: `1px solid ${t.border}`, borderRadius: 12, padding: 8, zIndex: 200, minWidth: 160, boxShadow: `0 8px 32px rgba(0,0,0,.4)` }}>
-                {Object.entries(THEMES).map(([k, th]) => (
-                  <button key={k} onClick={() => { setTheme(k); setShowTheme(false); }}
-                    style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "8px 12px", fontSize: 12, color: t.text, background: theme === k ? t.border : "transparent", border: "none", borderRadius: 8, cursor: "pointer", fontFamily: "inherit" }}
-                    onMouseEnter={e => e.currentTarget.style.background = t.border}
-                    onMouseLeave={e => { if (theme !== k) e.currentTarget.style.background = "transparent"; }}>
-                    <span style={{ width: 14, height: 14, borderRadius: "50%", background: th.accent, border: `2px solid ${th.border}`, flexShrink: 0 }} />
-                    {th.name}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        </>
-      )}
-
-      <button onClick={onLogout} style={{ ...btnSt(false), marginLeft: 8, padding: "8px 12px" }}>로그아웃</button>
-    </div>
-  );
-}
-
-/* ══════════════════════════════════════════
-   MAIN APP
-   ══════════════════════════════════════════ */
+/* ??? MAIN APP ??? */
 export default function App() {
-  const [user, setUser] = useState(null);       // { username, displayName }
+  const [user, setUser] = useState(null);
   const [blocks, setBlocks] = useState([]);
-  const [theme, setTheme] = useState("noir");
+  const [layout, setLayout] = useState("macos");
+  const [colors, setColors] = useState(PRESETS[0]);
   const [editing, setEditing] = useState(false);
-  const [selectedId, setSelectedId] = useState(null);
-  const [editingBlockId, setEditingBlockId] = useState(null);
+  const [selId, setSelId] = useState(null);
   const [ready, setReady] = useState(false);
 
-  // auto-login from session
+  // menus
+  const [showAdd, setShowAdd] = useState(false);
+  const [showTheme, setShowTheme] = useState(false);
+  const [openG, setOpenG] = useState(null);
+  const [tab, setTab] = useState("layout");
+
+  // drag
+  const gridRef = useRef(null);
+  const drag = useRef(null);
+  const [ghost, setGhost] = useState(null);
+
+  // Auto-login
   useEffect(() => {
-    (async () => {
-      try {
-        const sess = await window.storage.get("current-session");
-        if (sess?.value) {
-          const { username } = JSON.parse(sess.value);
-          const authRes = await window.storage.get(`user-auth:${username}`, true);
-          if (authRes?.value) {
-            const auth = JSON.parse(authRes.value);
-            setUser({ username, displayName: auth.displayName });
-            const pageRes = await window.storage.get(`user-page:${username}`, true);
-            if (pageRes?.value) {
-              const page = JSON.parse(pageRes.value);
-              setBlocks(page.blocks || []);
-              setTheme(page.settings?.theme || "noir");
-            }
-          }
+    const sess = S.get("sess");
+    if (sess) {
+      const raw = S.get(`u:${sess.value}`);
+      if (raw) {
+        const ud = JSON.parse(raw.value);
+        setUser({ username: sess.value, displayName: ud.dn });
+        const page = S.get(`p:${sess.value}`);
+        if (page) {
+          const pg = JSON.parse(page.value);
+          setBlocks(pg.blocks || []);
+          setLayout(pg.settings?.layout || "macos");
+          if (pg.settings?.colors) setColors(pg.settings.colors);
         }
-      } catch {}
-      setReady(true);
-    })();
+      }
+    }
+    setReady(true);
   }, []);
 
-  // save on change
+  // Auto-save
   useEffect(() => {
     if (!user || !ready) return;
-    const timer = setTimeout(async () => {
-      try {
-        await window.storage.set(`user-page:${user.username}`, JSON.stringify({ blocks, settings: { theme } }), true);
-      } catch {}
-    }, 400);
+    const timer = setTimeout(() => {
+      S.set(`p:${user.username}`, JSON.stringify({ blocks, settings: { layout, colors } }));
+    }, 500);
     return () => clearTimeout(timer);
-  }, [blocks, theme, user, ready]);
+  }, [blocks, layout, colors, user, ready]);
 
-  const handleLogin = async (username, displayName) => {
+  const handleLogin = (username, displayName) => {
     setUser({ username, displayName });
-    try {
-      const pageRes = await window.storage.get(`user-page:${username}`, true);
-      if (pageRes?.value) {
-        const page = JSON.parse(pageRes.value);
-        setBlocks(page.blocks || []);
-        setTheme(page.settings?.theme || "noir");
-      } else {
-        setBlocks(DEFAULT_BLOCKS.map(b => ({ ...b, id: uid() })));
-      }
-    } catch {
-      setBlocks(DEFAULT_BLOCKS.map(b => ({ ...b, id: uid() })));
+    const page = S.get(`p:${username}`);
+    if (page) {
+      const pg = JSON.parse(page.value);
+      setBlocks(pg.blocks || []);
+      setLayout(pg.settings?.layout || "macos");
+      if (pg.settings?.colors) setColors(pg.settings.colors);
     }
   };
 
-  const handleLogout = async () => {
-    try { await window.storage.delete("current-session"); } catch {}
-    setUser(null);
-    setBlocks([]);
-    setEditing(false);
-    setSelectedId(null);
-    setEditingBlockId(null);
+  const handleLogout = () => {
+    S.del("sess");
+    setUser(null); setBlocks([]); setEditing(false); setSelId(null);
   };
 
-  if (!ready) return <div style={{ minHeight: "100vh", background: "#0e0e12", display: "flex", alignItems: "center", justifyContent: "center", color: "#6e6e82", fontFamily: "sans-serif" }}>Loading...</div>;
-  if (!user) return <AuthScreen onLogin={handleLogin} />;
+  if (!ready) return null;
+  if (!user) return <Auth onLogin={handleLogin} />;
 
-  const t = THEMES[theme] || THEMES.noir;
-  const editingBlock = editingBlockId ? blocks.find(b => b.id === editingBlockId) : null;
+  const t = { ...colors, glow: `${colors.accent}40`, grid: `${colors.text}08`, surface: colors.card, bgSolid: colors.bg };
+
+  // Grid drag logic
+  const getCell = () => {
+    if (!gridRef.current) return { cw: 80 };
+    const r = gridRef.current.getBoundingClientRect();
+    return { cw: (r.width - GAP * (COLS - 1)) / COLS };
+  };
+
+  const onDown = (e, id, mode) => {
+    if (!editing) return; e.preventDefault(); e.stopPropagation();
+    const b = blocks.find(x => x.id === id); if (!b) return;
+    setSelId(id);
+    drag.current = { id, mode, sx: e.clientX, sy: e.clientY, oc: b.col, or: b.row, ow: b.w, oh: b.h };
+    setGhost({ col: b.col, row: b.row, w: b.w, h: b.h });
+
+    const move = (ev) => {
+      const d = drag.current; if (!d) return;
+      const { cw } = getCell(); const sx = cw + GAP, sy = CELL + GAP;
+      if (d.mode === "move") setGhost({ col: clamp(d.oc + Math.round((ev.clientX - d.sx) / sx), 1, COLS - d.ow + 1), row: clamp(d.or + Math.round((ev.clientY - d.sy) / sy), 1, ROWS - d.oh + 1), w: d.ow, h: d.oh });
+      else setGhost({ col: d.oc, row: d.or, w: clamp(d.ow + Math.round((ev.clientX - d.sx) / sx), 1, COLS - d.oc + 1), h: clamp(d.oh + Math.round((ev.clientY - d.sy) / sy), 1, ROWS - d.or + 1) });
+    };
+    const up = () => {
+      if (drag.current && ghost) setBlocks(p => p.map(b => b.id === drag.current.id ? { ...b, col: ghost.col, row: ghost.row, w: ghost.w, h: ghost.h } : b));
+      drag.current = null; setGhost(null);
+      window.removeEventListener("mousemove", move);
+      window.removeEventListener("mouseup", up);
+    };
+    window.addEventListener("mousemove", move);
+    window.addEventListener("mouseup", up);
+  };
+
+  const addBlock = (cat) => {
+    const mr = blocks.reduce((mx, b) => Math.max(mx, b.row + b.h), 1);
+    setBlocks(p => [...p, { id: uid(), type: cat.type, v: cat.v, col: 1, row: clamp(mr, 1, ROWS), w: cat.w, h: cat.h, d: JSON.parse(JSON.stringify(cat.d)), st: {} }]);
+    setShowAdd(false); setOpenG(null);
+  };
+
+  const btn = (a) => ({ padding: "5px 11px", fontSize: 10, fontWeight: 600, color: a ? "#fff" : t.text, background: a ? t.accent : t.card, border: `1px solid ${a ? t.accent : t.border}`, borderRadius: 5, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 3 });
+  const borderFor = (isSel) => {
+    if (layout === "brutalist") return { border: `3px solid ${t.text}`, boxShadow: `3px 3px 0 ${t.text}`, borderRadius: 0 };
+    if (layout === "pixel") return { border: `3px solid ${t.accent}`, borderRadius: 0 };
+    if (layout === "retro") return { border: `2px solid ${t.accent}`, borderRadius: 0 };
+    return isSel && editing ? { border: `2px solid ${t.accent}`, borderRadius: 10 } : { border: `1px solid ${t.border}`, borderRadius: 10 };
+  };
 
   return (
-    <div style={{ minHeight: "100vh", background: t.bg, fontFamily: "'Outfit', 'Pretendard', sans-serif", color: t.text, transition: "background .5s" }}>
+    <div style={{ minHeight: "100vh", background: t.bg, fontFamily: "'Outfit','Pretendard',sans-serif", color: t.text, transition: "background .4s" }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap');
-        @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css');
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        ::-webkit-scrollbar { width: 5px; }
-        ::-webkit-scrollbar-thumb { background: ${t.accent}33; border-radius: 4px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        @keyframes fadeIn { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
-        input:focus, textarea:focus { border-color: ${t.accent} !important; outline: none; }
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap');
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css');
+*{box-sizing:border-box;margin:0;padding:0}
+::-webkit-scrollbar{width:3px}::-webkit-scrollbar-thumb{background:${t.accent}33;border-radius:3px}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+input:focus,select:focus{border-color:${t.accent}!important;outline:none}
       `}</style>
 
-      <Toolbar
-        editing={editing} setEditing={setEditing}
-        theme={theme} setTheme={setTheme}
-        blocks={blocks} setBlocks={setBlocks}
-        onLogout={handleLogout}
-        username={user.username}
-      />
-
-      <div style={{ maxWidth: 1100, margin: "0 auto", padding: "32px 32px 100px", animation: "fadeIn .5s ease" }}
-        onClick={() => { if (editing) { setSelectedId(null); setEditingBlockId(null); } }}>
+      {/* TOOLBAR */}
+      <div style={{ display: "flex", alignItems: "center", gap: 4, padding: "8px 14px", background: t.bg, borderBottom: `1px solid ${t.border}`, position: "sticky", top: 0, zIndex: 100, flexWrap: "wrap" }}>
+        <div style={{ fontSize: 13, fontWeight: 800, color: t.text, marginRight: 3 }}>MY<span style={{ color: t.accent }}>PAGE</span></div>
+        <div style={{ fontSize: 8, color: t.sub, marginRight: "auto" }}>@{user.username}</div>
+        <button onClick={() => { setEditing(!editing); setShowAdd(false); setShowTheme(false); }} style={btn(editing)}>{editing ? "? ??" : "?? ??"}</button>
 
         {editing && (
-          <div style={{ marginBottom: 16, padding: "10px 16px", borderRadius: 10, background: t.accentGlow, border: `1px solid ${t.accent}33`, fontSize: 12, color: t.accent, display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ fontSize: 16 }}>💡</span>
-            드래그로 블록을 이동하고, 우하단 핸들로 크기를 조절하세요. 더블클릭하면 내용을 편집할 수 있어요.
-          </div>
+          <>
+            <div style={{ position: "relative" }}>
+              <button onClick={() => { setShowAdd(!showAdd); setShowTheme(false); }} style={btn(false)}>+ ??</button>
+              {showAdd && (
+                <div style={{ position: "absolute", top: "calc(100% + 3px)", left: 0, background: t.bg, border: `1px solid ${t.border}`, borderRadius: 8, padding: 5, zIndex: 200, width: 220, maxHeight: 360, overflowY: "auto", boxShadow: `0 10px 30px rgba(0,0,0,.5)` }}>
+                  {openG === null ? CAT.map(g => (
+                    <button key={g.key} onClick={() => setOpenG(g.key)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", padding: "7px 9px", fontSize: 10, color: t.text, background: "transparent", border: "none", borderRadius: 5, cursor: "pointer", fontFamily: "inherit" }} onMouseEnter={(e) => e.currentTarget.style.background = t.border} onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}>
+                      <span>{g.label}</span><span style={{ fontSize: 8, color: t.sub }}>{g.items.length}??</span>
+                    </button>
+                  )) : (
+                    <>
+                      <button onClick={() => setOpenG(null)} style={{ width: "100%", padding: "5px 9px", fontSize: 9, color: t.accent, background: "transparent", border: "none", borderRadius: 5, cursor: "pointer", fontFamily: "inherit", textAlign: "left", marginBottom: 2 }}>? ??</button>
+                      {CAT.find(g => g.key === openG)?.items.map(cat => (
+                        <button key={cat.type + cat.v} onClick={() => addBlock(cat)} style={{ display: "flex", width: "100%", padding: "6px 9px", fontSize: 10, color: t.text, background: "transparent", border: "none", borderRadius: 5, cursor: "pointer", fontFamily: "inherit" }} onMouseEnter={(e) => e.currentTarget.style.background = t.border} onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}>
+                          <span style={{ flex: 1 }}>{cat.label}</span><span style={{ fontSize: 7, color: t.sub }}>{cat.w}�{cat.h}</span>
+                        </button>
+                      ))}
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+            <div style={{ position: "relative" }}>
+              <button onClick={() => { setShowTheme(!showTheme); setShowAdd(false); }} style={btn(false)}>? ???</button>
+              {showTheme && (
+                <div style={{ position: "absolute", top: "calc(100% + 3px)", right: 0, background: t.bg, border: `1px solid ${t.border}`, borderRadius: 8, padding: 6, zIndex: 200, width: 240, maxHeight: 400, overflowY: "auto", boxShadow: `0 10px 30px rgba(0,0,0,.5)` }}>
+                  <div style={{ display: "flex", gap: 3, marginBottom: 6 }}>
+                    {[["layout", "????"], ["color", "??"]].map(([k, l]) => (
+                      <button key={k} onClick={() => setTab(k)} style={{ flex: 1, padding: 4, fontSize: 9, fontWeight: tab === k ? 700 : 400, color: tab === k ? t.accent : t.sub, background: tab === k ? `${t.accent}22` : "transparent", border: `1px solid ${tab === k ? t.accent : t.border}`, borderRadius: 4, cursor: "pointer", fontFamily: "inherit" }}>{l}</button>
+                    ))}
+                  </div>
+                  {tab === "layout" && (
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 2 }}>
+                      {Object.entries(LAYOUTS).map(([k, n]) => (
+                        <button key={k} onClick={() => setLayout(k)} style={{ padding: "6px 3px", fontSize: 8, color: t.text, background: layout === k ? `${t.accent}22` : "transparent", border: layout === k ? `2px solid ${t.accent}` : `1px solid ${t.border}`, borderRadius: 4, cursor: "pointer", fontFamily: "inherit", fontWeight: layout === k ? 700 : 400 }}>{n}</button>
+                      ))}
+                    </div>
+                  )}
+                  {tab === "color" && (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2 }}>
+                        {PRESETS.map((cp, i) => (
+                          <button key={i} onClick={() => setColors(cp)} style={{ display: "flex", alignItems: "center", gap: 3, padding: "5px 7px", fontSize: 8, color: cp.text, background: cp.bg, border: `1px solid ${cp.border}`, borderRadius: 5, cursor: "pointer", fontFamily: "inherit" }}>
+                            <span style={{ width: 7, height: 7, borderRadius: "50%", background: cp.accent }} />{cp.n}
+                          </button>
+                        ))}
+                      </div>
+                      <div style={{ fontSize: 8, color: t.sub, marginTop: 3 }}>???</div>
+                      {[["??", "bg"], ["???", "text"], ["??", "sub"], ["??", "accent"], ["??", "card"]].map(([l, k]) => (
+                        <div key={k} style={{ display: "flex", alignItems: "center", gap: 3 }}>
+                          <span style={{ fontSize: 8, color: t.sub, width: 28 }}>{l}</span>
+                          <input type="color" value={colors[k]?.startsWith("#") ? colors[k] : "#333333"} onChange={(e) => setColors({ ...colors, [k]: e.target.value })} style={{ width: 20, height: 16, borderRadius: 3, border: `1px solid ${t.border}`, cursor: "pointer", padding: 0 }} />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </>
         )}
-
-        <GridCanvas
-          blocks={blocks} setBlocks={setBlocks}
-          editing={editing} theme={theme}
-          selectedId={selectedId} setSelectedId={setSelectedId}
-          onEditBlock={id => { setEditingBlockId(id); setSelectedId(id); }}
-        />
-
-        {!editing && (
-          <div style={{ textAlign: "center", marginTop: 40, fontSize: 10, color: t.sub, letterSpacing: 3 }}>
-            @{user.username} · MADE WITH ♡
-          </div>
-        )}
+        <button onClick={handleLogout} style={{ ...btn(false), marginLeft: 2 }}>????</button>
       </div>
 
-      {editingBlock && (
-        <BlockEditorPanel
-          block={editingBlock}
-          t={t}
-          onUpdate={updated => setBlocks(prev => prev.map(b => b.id === updated.id ? updated : b))}
-          onClose={() => setEditingBlockId(null)}
-        />
-      )}
+      {/* CONTENT */}
+      <div style={{ maxWidth: 1060, margin: "0 auto", padding: "20px 20px 60px", animation: "fadeIn .5s ease" }} onClick={() => { if (editing) setSelId(null); }}>
+        {editing && <div style={{ marginBottom: 10, padding: "6px 10px", borderRadius: 5, background: `${t.accent}15`, border: `1px solid ${t.accent}25`, fontSize: 9, color: t.accent }}>? ???=?? � ???=???? � ?? ?? ? ?? ??</div>}
+
+        <div ref={gridRef} style={{ position: "relative", display: "grid", gridTemplateColumns: `repeat(${COLS},1fr)`, gridAutoRows: CELL, gap: GAP, width: "100%", minHeight: ROWS * (CELL + GAP) }}>
+          {editing && Array.from({ length: COLS * ROWS }).map((_, i) => (
+            <div key={`g${i}`} style={{ gridColumn: (i % COLS) + 1, gridRow: Math.floor(i / COLS) + 1, borderRadius: 2, border: `1px dashed ${t.grid}`, pointerEvents: "none" }} />
+          ))}
+          {editing && ghost && <div style={{ gridColumn: `${ghost.col}/span ${ghost.w}`, gridRow: `${ghost.row}/span ${ghost.h}`, borderRadius: 8, border: `2px dashed ${t.accent}`, background: `${t.accent}12`, pointerEvents: "none", zIndex: 5 }} />}
+          {blocks.map((block) => {
+            const isSel = selId === block.id;
+            const isDrag = drag.current?.id === block.id;
+            const st = block.st || {};
+            return (
+              <div key={block.id} style={{
+                gridColumn: `${block.col}/span ${block.w}`, gridRow: `${block.row}/span ${block.h}`,
+                background: t.card, position: "relative", zIndex: isDrag ? 10 : 2,
+                opacity: isDrag ? .4 : 1, cursor: editing ? "grab" : "default",
+                transition: isDrag ? "none" : "all .2s", overflow: "hidden",
+                boxShadow: isSel && editing ? `0 4px 16px ${t.accent}30` : "none",
+                ...borderFor(isSel),
+              }} onMouseDown={(e) => editing && onDown(e, block.id, "move")}>
+                {st.particle && <Particles effect={st.particle} count={st.particleCnt || 12} color={st.accent || t.accent} />}
+                <div style={{ position: "relative", zIndex: 2, height: "100%" }}>
+                  <LayoutWrap layout={layout} t={{ ...t, accent: st.accent || t.accent }} title={block.d?.name || block.d?.title || block.type}>
+                    <BlockContent type={block.type} v={block.v} d={block.d} t={{ ...t, accent: st.accent || t.accent }} st={st} />
+                  </LayoutWrap>
+                </div>
+                {editing && isSel && (
+                  <>
+                    <div onMouseDown={(e) => onDown(e, block.id, "resize")} style={{ position: "absolute", bottom: 0, right: 0, width: 14, height: 14, cursor: "nwse-resize", zIndex: 20, background: `${t.accent}44`, borderRadius: "5px 0 0 0", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <svg width="7" height="7" viewBox="0 0 10 10"><path d="M9 1L1 9M9 5L5 9" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" /></svg>
+                    </div>
+                    <button onClick={(e) => { e.stopPropagation(); setBlocks(p => p.filter(b => b.id !== block.id)); setSelId(null); }} style={{ position: "absolute", top: 2, right: 3, background: "rgba(220,50,50,.85)", color: "#fff", border: "none", borderRadius: 3, width: 16, height: 16, fontSize: 9, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 20 }}>?</button>
+                  </>
+                )}
+              </div>
+            );
+          })}
+        </div>
+        {!editing && <div style={{ textAlign: "center", marginTop: 28, fontSize: 7, color: t.sub, letterSpacing: 2 }}>@{user.username} � MADE WITH ?</div>}
+      </div>
     </div>
   );
 }
